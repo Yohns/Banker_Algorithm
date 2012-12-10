@@ -12,44 +12,52 @@ namespace ConsoleAppBanker
     {
         static void Main(string[] args)
         {
-            TextWriter newOut = new StreamWriter(@"d:\record.txt");
-            System.Console.SetOut(newOut);
-            BankerControl bCon = new BankerControl(20);
+            //TextWriter newOut = new StreamWriter(@"d:\record.txt");
+            //System.Console.SetOut(newOut);
+            //DateTime start = DateTime.Now;
+            //TimeSpan tsStart = new TimeSpan(start.Ticks);
+
+            BankerControl bCon = new BankerControl(10);
+            bCon.ShowConsoleAvaliable();
             bCon.ShowConsoleNeed();
-            DateTime start = DateTime.Now;
-            TimeSpan tsStart = new TimeSpan(start.Ticks);
+
             while (bCon.UnDoneCount != 0)
             {
+                Console.ReadKey(true);
 
-                bCon.ShowConsoleAvaliable();
                 if (bCon.Request())
                 {
-                    Console.WriteLine("Request is Found!!");      
+                    Console.WriteLine("Request sucessfully!!");      
                 }
                 else
                 {
-                    Console.WriteLine("Request is not Found!!");
+                    Console.WriteLine("Request failed!!");
                 }
+
+                bCon.ShowConsoleAvaliable();
                 bCon.ShowConsoleRequest();
                 bCon.ShowConsoleNeed();
                 while (bCon.ExcuteQueue())
                 {
-                    Console.WriteLine("Queue:  ----------------------------------------------");
+                    Console.ReadKey(true);
+                    Console.WriteLine("---------------------------in waiting queue-----------------------");
                     bCon.ShowConsoleAvaliable();
                     bCon.ShowConsoleRequest();
                     bCon.ShowConsoleNeed();
-                    
                 }
             }
-            DateTime end = DateTime.Now;
-            TimeSpan tsEnd = new TimeSpan(end.Ticks);
-            TimeSpan final = tsEnd.Subtract(tsStart).Duration();
-            StreamWriter sw = new StreamWriter(Console.OpenStandardOutput());
-            TextWriter consoleOut = Console.Out;
-            System.Console.SetOut(sw);
-            Console.WriteLine(final.TotalSeconds);
-            newOut.Close();
-            sw.Close();
+            bCon.ShowConsoleAvaliable();
+
+            //DateTime end = DateTime.Now;
+            //TimeSpan tsEnd = new TimeSpan(end.Ticks);
+            //TimeSpan final = tsEnd.Subtract(tsStart).Duration();
+            //StreamWriter sw = new StreamWriter(Console.OpenStandardOutput());
+            //TextWriter consoleOut = Console.Out;
+            //System.Console.SetOut(sw);
+            //Console.WriteLine(final.TotalSeconds);
+            //newOut.Close();
+            //sw.Close();
+
             Console.ReadKey(true);
         }
     }

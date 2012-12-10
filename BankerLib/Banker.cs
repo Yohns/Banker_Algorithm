@@ -119,9 +119,9 @@ namespace BankerLib
             {
                 newBanker._allocation.Add(this._allocation[i]);
                 newBanker._claim.Add(this._claim[i]);
-                newBanker._need.Add(this._need[i]);
-                newBanker._isDone = this._isDone;
+                newBanker._need.Add(this._need[i]);         
             }
+            newBanker._isDone = this._isDone;
             return newBanker;
         }
     }

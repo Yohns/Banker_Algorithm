@@ -15,8 +15,6 @@ namespace BankerLib
         #region Field
         private BankerCollect _bankerCollect;
 
-        private int _count;
-
         private int _proIndex;
 
         private Banker _currentBanker;
@@ -46,14 +44,6 @@ namespace BankerLib
         public BankerCollect BankerCollect
         {
             get { return _bankerCollect; }
-        }
-
-        /// <summary>
-        /// process amount
-        /// </summary>
-        public int Count
-        {
-            get { return _count; }
         }
 
         /// <summary>
@@ -109,30 +99,30 @@ namespace BankerLib
         public BankerControl(int amount)
         {
             _bankerCollect = new BankerCollect();
-            _count = amount;
+            for (int i = 0; i < amount; i++)
+            {
+                Banker banker = new Banker();
+                _bankerCollect.Add(banker);
+            }
+            _unDoneCount = _bankerCollect.Count;
             _waitQueue = new List<Process>();
             init();
         }
 
         private void init()
         {
-            for (int i = 0; i < _count; i++)
-            {
-                Banker banker = new Banker();
-                _bankerCollect.Add(banker);
-            }
-
             // init avaliable resources
-            do
+            _avaliable = new List<int>(Data.ResCount);
+            for (int i = 0; i < Data.ResCount; i++)
             {
-                _avaliable = new List<int>(Data.ResCount);
-                for (int i = 0; i < Data.ResCount; i++)
+                int res = 0;
+                for (int j = 0; j < _bankerCollect.Count; j++)
                 {
-                    int res = Data.Random.Next(Data.ResAvaliableMin, Data.ResAvaliableMax);
-                    _avaliable.Add(res);
+                    if (_bankerCollect[j].Claim[i] > res)
+                        res = _bankerCollect[j].Claim[i];
                 }
-            } while (!runCheck(_bankerCollect, _avaliable));
-            _unDoneCount = _count;
+                _avaliable.Add(res);
+            }
         }
 
         /// <summary>
@@ -158,32 +148,42 @@ namespace BankerLib
                 _isSafe = true;
                 return;
             }
-            for (int i = 0; i < bc.Count; i++)
+            BankerCollect tempB = (BankerCollect)bc.Clone();   // create a temp BankerCollect
+            for (int i = 0; i < tempB.Count; i++)
             {
-                BankerCollect tempB = (BankerCollect)bc.Clone();   // create a temp BankerCollect
+                Banker tempBank = tempB[i];
                 List<int> newA = listClone(avaliable);
                 if (_isSafe)                // if recursion calculate that the sequence is safe, then quit function
                 {
                     return;
                 }
-                bool isSatisfy = true;
-                if (!bc[i].IsDone)
+                if (tempBank.IsDone)
                 {
+                    tempB.Remove(tempBank);    // then remove it and recurse 
+                    checkSafe(tempB, newA);
+                    i--;
+                }
+                else
+                {
+                    bool isSatisfy = true;
                     for (int j = 0; j < Data.ResCount; j++)
                     {
-                        if (bc[i].Need[j] > newA[j])
+                        if (tempBank.Need[j] > newA[j])
                         {
                             isSatisfy = false;
                             break;
                         }
                     }
+                    if (isSatisfy)          // check if avaliable resources satisfy with one Banker's need
+                    {
+                        delAvailable(newA, tempBank.Need);
+                        addAvailable(newA, tempBank.Claim);
+                        tempB.Remove(tempBank);    // then remove it and recurse 
+                        checkSafe(tempB, newA);
+                        i--;
+                    }
                 }
-                if (isSatisfy)          // check if avaliable resources satisfy with one Banker's need
-                {
-                    addAvailable(newA, tempB[i].Claim);
-                    tempB.RemoveAt(i);    // then remove it and recurse 
-                    checkSafe(tempB, newA);
-                }
+               
             }
         }
 
@@ -205,8 +205,8 @@ namespace BankerLib
 
         private List<int> listClone(List<int> resources)
         {
-            List<int> newList = new List<int>(resources.Count);
-            for (int i = 0; i < resources.Count; i++)
+            List<int> newList = new List<int>(Data.ResCount);
+            for (int i = 0; i < Data.ResCount; i++)
             {
                 newList.Add(resources[i]);
             }
@@ -225,44 +225,79 @@ namespace BankerLib
             }
             do
             {
-                _proIndex = Data.Random.Next(_count);
+                _proIndex = Data.Random.Next(_bankerCollect.Count);
             } while (_bankerCollect[ProIndex].IsDone);
-            _requestRes = new List<int>(Data.ResCount);
             _currentBanker = _bankerCollect[_proIndex];
             bool isZero = true;
-            for (int i = 0; i < Data.ResCount; i++) // make sure that request resources <= need resources
+            do
             {
-               // int requireLimit = (_currentBanker.Need[i] < _avaliable[i]) ? _currentBanker.Need[i] : _avaliable[i];
-                int requireLimit = _currentBanker.Need[i];
-                int res = Data.Random.Next(requireLimit + 1);
-                _requestRes.Add(res);
-                if (isZero && res > 0)
-                    isZero = false;
-            }
-            if (isZero)
-                return false;
+                isZero = true;
+                _requestRes = new List<int>(Data.ResCount);
+                for (int i = 0; i < Data.ResCount; i++) // make sure that request resources <= need resources
+                {
+                    int requireLimit = _currentBanker.Need[i];
+                    int res = Data.Random.Next(requireLimit + 1);
+                    _requestRes.Add(res);
+                    if (isZero && res > 0)
+                        isZero = false;
+                }
+            } while (isZero); // make sure that all kinds of request resources are not 0 at the same time
+
+            List<int> newA = listClone(_avaliable);
+
             for (int i = 0; i < Data.ResCount; i++)
             {
-                if (_requestRes[i] > _avaliable[i])
+                if (_requestRes[i] > newA[i])
                 {
-                    _waitQueue.Add(new Process(_proIndex, _requestRes));
+                   // _waitQueue.Add(new Process(_proIndex, _requestRes));
                     return false;
                 }
             }
             BankerCollect tempB = (BankerCollect)_bankerCollect.Clone();
             tempB[_proIndex].allocate(_requestRes);
-            if (!runCheck(tempB, _avaliable))   // if no safe after allocating resources, then add request to waiting queue
+            delAvailable(newA, _requestRes);
+            if (tempB[_proIndex].IsDone)
             {
-                _waitQueue.Add(new Process(_proIndex, _requestRes));
+                addAvailable(newA, tempB[_proIndex].Claim);
+            }
+
+            ////---------------------------------------------------
+            //ShowConsoleAvaliable();
+            //for (int i = 0; i < tempB.Count; i++)
+            //{
+            //    Console.Write("Process " + i + " : ");
+            //    for (int j = 0; j < tempB[i].Need.Count; j++)
+            //    {
+            //        Console.Write(tempB[i].Need[j] + " ");
+            //    }
+            //    Console.WriteLine();
+            //}
+
+            if (!runCheck(tempB, newA))   // if no safe after allocating resources, then add request to waiting queue
+            {
+                //_waitQueue.Add(new Process(_proIndex, _requestRes));
                 return false;
             }
-            delAvailable(_avaliable, _requestRes);
-            _bankerCollect = tempB;
-            if (_bankerCollect[_proIndex].IsDone)
+
+            ////---------------------------------------------------
+            //Console.WriteLine("safeer");
+            //ShowConsoleAvaliable();
+            //for (int i = 0; i < tempB.Count; i++)
+            //{
+            //    Console.Write("Process " + i + " : ");
+            //    for (int j = 0; j < tempB[i].Need.Count; j++)
+            //    {
+            //        Console.Write(tempB[i].Need[j] + " ");
+            //    }
+            //    Console.WriteLine();
+            //}
+
+            if (tempB[_proIndex].IsDone)
             {
-                addAvailable(_avaliable, _bankerCollect[_proIndex].Claim);
                 _unDoneCount--;
             }
+            _avaliable = newA;
+            _bankerCollect = tempB;
             return true;
         }
 
@@ -274,37 +309,33 @@ namespace BankerLib
         {
             if (_waitQueue.Count <= 0 || _unDoneCount <= 0)
                 return false;
-            List<Process> newQ = new List<Process>();
             for (int i = 0; i < _waitQueue.Count; i++)
             {
-                newQ.Add(_waitQueue[i]);
-            }
-            for (int i = 0; i < _waitQueue.Count; i++)
-            {
-                Process tempP = (Process)_waitQueue[i].Clone();
                 BankerCollect tempB = (BankerCollect)_bankerCollect.Clone();
-                if (tempB[tempP.ProIndex].allocate(tempP.RequestRes))
+                List<int> newA = listClone(_avaliable);
+                if (!tempB[_waitQueue[i].ProIndex].IsDone && tempB[_waitQueue[i].ProIndex].allocate(_waitQueue[i].RequestRes))
                 {
-                    delAvailable(_avaliable, tempP.RequestRes);
-                    if (runCheck(tempB, _avaliable))   // if no safe after allocating resources, then add request to waiting queue
+                    delAvailable(newA, _waitQueue[i].RequestRes);
+                    if (runCheck(tempB, newA))   // if no safe after allocating resources, then check next request in waiting queue
                     {
-                        _bankerCollect = tempB;
-                        if (tempB[tempP.ProIndex].IsDone)
+                        delAvailable(_avaliable, _waitQueue[i].RequestRes);
+
+                        if (tempB[_waitQueue[i].ProIndex].IsDone)
                         {
-                            addAvailable(_avaliable, tempB[tempP.ProIndex].Claim);
+                            addAvailable(_avaliable, tempB[_waitQueue[i].ProIndex].Claim);
                             _unDoneCount--;
                         }
-                        _requestRes = tempP.RequestRes;
-                        _proIndex = tempP.ProIndex;
-                        newQ.Remove(tempP);
-                        _waitQueue = newQ;
+                        _bankerCollect = tempB;
+                        _requestRes = _waitQueue[i].RequestRes;
+                        _proIndex = _waitQueue[i].ProIndex;
+                        _waitQueue.Remove(_waitQueue[i]);
                         return true;
                     }
-                    addAvailable(_avaliable, tempB[tempP.ProIndex].Claim);
                 }
                 else   // if request in waiting queue > banker's need, then remove it.
                 {
-                    newQ.Remove(tempP);
+                    _waitQueue.Remove(_waitQueue[i]);
+                    i--;
                 }
             }
             return false;
@@ -312,10 +343,10 @@ namespace BankerLib
 
         public void ShowConsoleNeed()
         {
-            for (int i = 0; i < _count; i++)
+            for (int i = 0; i < _bankerCollect.Count; i++)
             {
                 Console.Write(i + " process: ");
-                for (int j = 0; j < _bankerCollect[i].Need.Count; j++)
+                for (int j = 0; j < Data.ResCount; j++)
                 {
                     Console.Write(_bankerCollect[i].Need[j] + " ");
                 }
@@ -327,7 +358,7 @@ namespace BankerLib
         {
             Console.WriteLine("Current Process: " + _proIndex);
             Console.Write("Current Request : ");
-            for (int i = 0; i < _requestRes.Count; i++)
+            for (int i = 0; i < Data.ResCount; i++)
             {
                 Console.Write(_requestRes[i] + " ");
             }
@@ -337,7 +368,7 @@ namespace BankerLib
         public void ShowConsoleAvaliable()
         {
             Console.Write("Current Avaliable: ");
-            for (int i = 0; i < _avaliable.Count; i++)
+            for (int i = 0; i < Data.ResCount; i++)
             {
                 Console.Write(_avaliable[i] + " ");
             }
